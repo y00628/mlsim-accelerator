@@ -1,0 +1,7 @@
+build/
+*.o
+*.d
+*.vcd
+__pycache__/
+*.pyc
+roofline.png
