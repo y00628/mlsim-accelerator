@@ -21,10 +21,19 @@ Measured on Apple M-series, `-O3 -march=native`. Reproduce with `./build/rooflin
 
 ### Naive vs tiled (tile=64) — best tile wins
 
-AI = FLOPs / bytes *actually transferred from memory*. Both naive and tiled re-read tiles on every outer iteration; the difference is how many times — naive re-reads the full matrix (`ts`=1 effectively), tiled amortizes over `ts` elements.
+AI = FLOPs / bytes *modeled as transferred from memory*. The model assumes worst-case memory traffic: every C element access hits memory (no register accumulation). In practice a compiler keeps the C accumulator in a register, so real C traffic is 2×M×N (one read + one write per output element), not 2×M×K×N. This makes the stated AIs **conservative lower bounds** — actual AI is higher.
+
+Element access counts under the worst-case model:
+- A: re-read for every j (naive) or every j-tile (tiled)
+- B: re-read for every i (naive) or every i-tile (tiled)
+- C: read+written for every k (naive) or every k-tile (tiled)
+
+Total elements = 4×M×K×N (naive) or 4×M×K×N/ts (tiled), giving:
 
 - Naive: 4×M×K×N accesses → AI = **0.125 FLOP/B** (constant, independent of size)
 - Tiled: 4×M×K×N/ts accesses → AI = **ts/8 FLOP/B** (depends only on tile size, not matrix shape)
+
+Note: the tiled formula assumes M, K, N are multiples of ts (all benchmark configs satisfy this).
 
 | M | K | N | Naive AI | Tiled-16 AI | Tiled-32 AI | Tiled-64 AI | Naive (GFLOP/s) | Tiled-64 (GFLOP/s) | Speedup |
 |--:|--:|--:|---------:|------------:|------------:|------------:|----------------:|-------------------:|--------:|
@@ -37,7 +46,7 @@ AI = FLOPs / bytes *actually transferred from memory*. Both naive and tiled re-r
 
 **Takeaways**
 - **Tiled AI depends only on tile size, not matrix shape** — AI = ts/8 for float32; doubling the tile doubles the AI regardless of M, K, N.
-- **Naive is permanently memory-bound** — 0.125 FLOP/B is far below the typical ridge point (~10–15 FLOP/B on M-series); the CPU stalls on memory almost every cycle.
+- **Naive is permanently memory-bound** — 0.125 FLOP/B is a conservative lower bound, but even with register accumulation for C the true AI remains far below the typical ridge point (~10–15 FLOP/B on M-series); the CPU stalls on memory almost every cycle.
 - **tile=64 crosses the ridge point** — at 8.0 FLOP/B it sits near the compute-bound boundary, explaining the 8–14× speedup over naive.
 - **Remaining gap to peak** — even tiled is single-threaded scalar; AVX/AMX or multi-threading are the next levers (future phases).
 
