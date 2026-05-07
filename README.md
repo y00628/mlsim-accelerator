@@ -21,7 +21,7 @@ Measured on Apple M-series, `-O3 -march=native`. Reproduce with `./build/rooflin
 
 ### Naive vs tiled (tile=64) — best tile wins
 
-AI = FLOPs / bytes *modeled as transferred from memory*. The model assumes worst-case memory traffic: every C element access hits memory (no register accumulation). In practice a compiler keeps the C accumulator in a register, so real C traffic is 2×M×N (one read + one write per output element), not 2×M×K×N. This makes the stated AIs **conservative lower bounds** — actual AI is higher.
+AI = FLOPs / bytes *modeled as transferred from memory*. The model assumes **no caches** — every array access goes to DRAM, and every C element access hits memory (no register accumulation). In practice: caches absorb A/B reuse (especially for tiled, which is designed to fit tiles in L1/L2), and the compiler keeps the C accumulator in a register, so real C traffic is 2×M×N (one read + one write per output element), not 2×M×K×N. This makes the stated AIs **conservative lower bounds** — actual AI on hardware is higher.
 
 Element access counts under the worst-case model:
 - A: re-read for every j (naive) or every j-tile (tiled)
