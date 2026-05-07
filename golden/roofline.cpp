@@ -6,9 +6,19 @@
 
 // For an M x K x N GEMM:
 //   FLOPs  = 2 * M * K * N   (one multiply + one add per inner iteration)
-//   Bytes  = sizeof(float) * (M*K + K*N + M*N)  (read A, B; write C)
-//   Arith intensity (AI) = FLOPs / Bytes
-//   Bandwidth (GB/s)     = Bytes / seconds / 1e9
+//
+// Bytes depends on the implementation's actual memory traffic:
+//
+//   Naive — every array access is a potential cache miss:
+//     A[i,k] re-read for every j  → M*K*N reads
+//     B[k,j] re-read for every i  → M*K*N reads
+//     C[i,j] read+written for every k → 2*M*N*K accesses
+//     Total = 4 * sizeof(float) * M*K*N
+//     → AI = 2*M*K*N / (4*4*M*K*N) = 0.125 FLOP/B  (constant, always memory-bound)
+//
+//   Tiled — each element loaded once per tile pass (ideal cache reuse):
+//     Total = sizeof(float) * (M*K + K*N + M*N)
+//     → AI = 2*M*K*N / (4*(M*K+K*N+M*N))  (grows with matrix size)
 //
 // When AI is high  → compute-bound  (limited by FLOP/s)
 // When AI is low   → memory-bound   (limited by bandwidth)
@@ -24,6 +34,7 @@ struct BenchResult {
 
 BenchResult benchmark(int M, int K, int N,
                       std::function<void()> run_fn,
+                      double bytes,           // caller supplies traffic model
                       int reps = 5)
 {
     run_fn(); // warm up
@@ -35,7 +46,6 @@ BenchResult benchmark(int M, int K, int N,
 
     double secs  = std::chrono::duration<double>(t1 - t0).count() / reps;
     double flops = 2.0 * M * K * N;
-    double bytes = sizeof(float) * double(M*K + K*N + M*N);
 
     return { M, K, N,
              secs * 1e3,
@@ -86,13 +96,18 @@ int main() {
         std::cout << "\n=== M=" << M << "  K=" << K << "  N=" << N << " ===\n";
         print_header();
 
+        // Naive: every A/B element re-read on each pass → 4×M×K×N logical accesses
+        const double naive_bytes = 4.0 * sizeof(float) * double(M) * K * N;
+        // Tiled: each element loaded once (ideal reuse within tile)
+        const double tiled_bytes = sizeof(float) * double(M*K + K*N + M*N);
+
         // --- naive ---
         {
             std::vector<float> A(M*K, 1.0f), B(K*N, 1.0f), C(M*N, 0.0f);
             auto r = benchmark(M, K, N, [&]{
                 std::fill(C.begin(), C.end(), 0.0f);
                 gemm_naive(A, B, C, M, K, N);
-            });
+            }, naive_bytes);
             print_row(r, 0);
         }
 
@@ -103,7 +118,7 @@ int main() {
             auto r = benchmark(M, K, N, [&]{
                 std::fill(C.begin(), C.end(), 0.0f);
                 gemm_tiled(A, B, C, M, K, N, ts);
-            });
+            }, tiled_bytes);
             print_row(r, ts);
         }
     }
