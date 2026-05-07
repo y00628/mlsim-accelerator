@@ -2,7 +2,7 @@
 
 // Naive GEMM: three nested loops, no cache optimization.
 // Access pattern for B is column-wise → cache-unfriendly for row-major storage.
-// This is your baseline; week 2 replaces this with gemm_tiled.
+// Baseline implementation.
 void gemm_naive(
     const std::vector<float>& A,
     const std::vector<float>& B,
