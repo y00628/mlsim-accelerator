@@ -16,9 +16,12 @@
 //     Total = 4 * sizeof(float) * M*K*N
 //     → AI = 2*M*K*N / (4*4*M*K*N) = 0.125 FLOP/B  (constant, always memory-bound)
 //
-//   Tiled — each element loaded once per tile pass (ideal cache reuse):
-//     Total = sizeof(float) * (M*K + K*N + M*N)
-//     → AI = 2*M*K*N / (4*(M*K+K*N+M*N))  (grows with matrix size)
+//   Tiled — each tile is reloaded once per outer tile iteration:
+//     A tile [i,k] reused across N/ts j-tiles  → M*K*N/ts   element loads
+//     B tile [k,j] reused across M/ts i-tiles  → M*K*N/ts   element loads
+//     C tile [i,j] read+written K/ts times     → 2*M*K*N/ts element accesses
+//     Total = 4 * sizeof(float) * M*K*N / ts
+//     → AI = 2*M*K*N / (4*4*M*K*N/ts) = ts/8  (FLOP/B, depends only on tile size)
 //
 // When AI is high  → compute-bound  (limited by FLOP/s)
 // When AI is low   → memory-bound   (limited by bandwidth)
@@ -96,10 +99,8 @@ int main() {
         std::cout << "\n=== M=" << M << "  K=" << K << "  N=" << N << " ===\n";
         print_header();
 
-        // Naive: every A/B element re-read on each pass → 4×M×K×N logical accesses
+        // Naive: A/B re-read on every pass → 4×M×K×N logical element accesses
         const double naive_bytes = 4.0 * sizeof(float) * double(M) * K * N;
-        // Tiled: each element loaded once (ideal reuse within tile)
-        const double tiled_bytes = sizeof(float) * double(M*K + K*N + M*N);
 
         // --- naive ---
         {
@@ -114,6 +115,8 @@ int main() {
         // --- tiled, various tile sizes ---
         for (int ts : tile_sizes) {
             if (ts > std::min({M, K, N})) continue; // skip nonsensical tile sizes
+            // Tiled: each tile reloaded once per outer tile iteration → 4×M×K×N/ts accesses
+            const double tiled_bytes = 4.0 * sizeof(float) * double(M) * K * N / ts;
             std::vector<float> A(M*K, 1.0f), B(K*N, 1.0f), C(M*N, 0.0f);
             auto r = benchmark(M, K, N, [&]{
                 std::fill(C.begin(), C.end(), 0.0f);
