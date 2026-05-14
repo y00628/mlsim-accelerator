@@ -145,9 +145,9 @@ Note: the tiled formula assumes M, K, N are multiples of ts (all benchmark confi
 </details>
 
 ## Project phases
-| Phase | Month | Focus | Status |
-|-------|-------|-------|--------|
-| 1 | May  | C++ GEMM, tiling, roofline | Done |
-| 2 | June | SystemC PE + systolic array | In progress |
-| 3 | July | SystemVerilog RTL PE + workloads | Not started |
-| 4 | Aug  | Dataflow variants, write-up | Not started |
+| Phase | Focus | Status |
+|-------|-------|--------|
+| 1 | C++ GEMM, tiling, roofline | Done |
+| 2 | SystemC PE + systolic array | In progress |
+| 3 | SystemVerilog RTL PE + workloads | Not started |
+| 4 | Dataflow variants, write-up | Not started |
