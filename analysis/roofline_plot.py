@@ -3,13 +3,17 @@
 Roofline plot — mlsim-accelerator golden model benchmarks.
 
 Data source: golden/build/roofline  (run with -O3 -march=native)
-AI model   : FLOPs / logical bytes (4×M×K×N per impl, /ts for tiled)
-             naive → AI = 0.125 FLOP/B
-             tiled → AI = ts/8  FLOP/B  (independent of matrix shape)
+AI model   : FLOPs / logical bytes (no-cache worst-case model)
+             naive → AI = 0.125 FLOP/B  (4×M×K×N byte accesses)
+             tiled → AI = ts/8  FLOP/B  (4×M×K×N/ts byte accesses)
+             These are conservative lower bounds — actual AI is higher
+             because caches absorb A/B reuse and the C accumulator
+             stays in a register.
 
-Machine ceilings (Apple M-series estimate — tune if needed):
+Machine ceilings (Apple M-series, empirically derived):
   PEAK_GFLOPS  : single-core FP32 with auto-vectorisation
-  PEAK_BW_GBS  : effective DRAM bandwidth for compute kernels
+  PEAK_BW_GBS  : ~22 GB/s measured from naive GEMM benchmark output
+                 (naive is cache-thrashing so it approximates DRAM BW)
 """
 import matplotlib.pyplot as plt
 import matplotlib.patheffects as pe
@@ -17,7 +21,7 @@ import numpy as np
 
 # ── machine ceilings ────────────────────────────────────────────────────────
 PEAK_GFLOPS = 80.0   # GFLOP/s  — adjust for your CPU
-PEAK_BW_GBS = 50.0   # GB/s     — adjust for your CPU
+PEAK_BW_GBS = 22.0   # GB/s     — empirical: avg naive GEMM bandwidth (~21–28 GB/s)
 
 # ── benchmark data: (label, AI FLOP/B, GFLOP/s) ────────────────────────────
 # Grouped by tile strategy; matrix configs listed for each group.
@@ -53,14 +57,14 @@ ax.loglog(ai_range, roof, color="black", lw=2.5, label="Roofline ceiling")
 
 # ridge-point marker
 ax.axvline(ridge, color="gray", ls="--", lw=1.2, alpha=0.6)
-ax.text(ridge * 1.08, PEAK_GFLOPS * 0.55,
-        f"ridge ≈ {ridge:.1f} FLOP/B", fontsize=8.5, color="gray", va="top")
+ax.text(ridge * 1.08, PEAK_GFLOPS * 0.35,
+        f"ridge ≈ {ridge:.1f} FLOP/B", fontsize=8.5, color="gray", va="center")
 
 # memory-bound / compute-bound region shading
-ax.fill_between(ai_range, roof, PEAK_GFLOPS * 2,
+ax.fill_between(ai_range, roof, PEAK_GFLOPS * 1.8,
                 where=[ai < ridge for ai in ai_range],
                 color="#aec6e8", alpha=0.10, label="memory-bound region")
-ax.fill_between(ai_range, roof, PEAK_GFLOPS * 2,
+ax.fill_between(ai_range, roof, PEAK_GFLOPS * 1.8,
                 where=[ai >= ridge for ai in ai_range],
                 color="#ffcc99", alpha=0.10, label="compute-bound region")
 
@@ -89,9 +93,9 @@ for group, (ai, perfs) in DATA.items():
 for frac, ls in [(0.50, ":"), (0.75, "--")]:
     eff_line = [ceiling(ai) * frac for ai in ai_range]
     ax.loglog(ai_range, eff_line, color="gray", lw=0.8, ls=ls, alpha=0.5)
-    # label at AI=0.05
-    label_ai = 0.04
-    ax.text(label_ai, ceiling(label_ai) * frac * 1.05,
+    # label at left edge of plot (xlim starts at 5e-2)
+    label_ai = 5.5e-2
+    ax.text(label_ai, ceiling(label_ai) * frac * 1.15,
             f"{int(frac*100)}% eff.", fontsize=7, color="gray", alpha=0.7)
 
 # ── formatting ───────────────────────────────────────────────────────────────

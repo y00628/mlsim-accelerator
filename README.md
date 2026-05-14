@@ -46,7 +46,7 @@ Note: the tiled formula assumes M, K, N are multiples of ts (all benchmark confi
 
 **Takeaways**
 - **Tiled AI depends only on tile size, not matrix shape** — AI = ts/8 for float32; doubling the tile doubles the AI regardless of M, K, N.
-- **Naive is permanently memory-bound** — 0.125 FLOP/B is a conservative lower bound, but even with register accumulation for C the true AI remains far below the typical ridge point (~10–15 FLOP/B on M-series); the CPU stalls on memory almost every cycle.
+- **Naive is permanently memory-bound** — 0.125 FLOP/B is a conservative lower bound, but even with register accumulation for C the true AI remains far below the empirical ridge point (~3.6 FLOP/B: 80 GFLOP/s ÷ 22 GB/s); the CPU stalls on memory almost every cycle.
 - **tile=64 crosses the ridge point** — at 8.0 FLOP/B it sits near the compute-bound boundary, explaining the 8–14× speedup over naive.
 - **Remaining gap to peak** — even tiled is single-threaded scalar; AVX/AMX or multi-threading are the next levers (future phases).
 
