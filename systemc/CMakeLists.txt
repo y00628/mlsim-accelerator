@@ -67,15 +67,23 @@ else()
 endif()
 
 # ---------------------------------------------------------------------------
-# .sc sources — CMake doesn't know this extension; declare them as C++
+# .sc sources — CMake doesn't know this extension natively.
+# Copy each .sc into the build dir as .cpp at configure time so the standard
+# CXX compiler rules fire correctly.
 # ---------------------------------------------------------------------------
 set(SC_SOURCES tb_array.sc)
-set_source_files_properties(${SC_SOURCES} PROPERTIES LANGUAGE CXX)
+set(SC_SOURCES_CPP "")
+foreach(_sc ${SC_SOURCES})
+  get_filename_component(_base ${_sc} NAME_WE)
+  set(_cpp "${CMAKE_CURRENT_BINARY_DIR}/${_base}.cpp")
+  configure_file(${_sc} ${_cpp} COPYONLY)
+  list(APPEND SC_SOURCES_CPP ${_cpp})
+endforeach()
 
 # ---------------------------------------------------------------------------
 # Testbench executable
 # ---------------------------------------------------------------------------
-add_executable(tb_array ${SC_SOURCES})
+add_executable(tb_array ${SC_SOURCES_CPP})
 target_include_directories(tb_array PRIVATE .)
 target_link_libraries(tb_array PRIVATE SystemC::systemc ${GEMM_TARGET})
 

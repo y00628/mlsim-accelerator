@@ -9,26 +9,35 @@ A cycle-approximate ML accelerator simulator built in three layers:
 
 ### 1 — Install SystemC (one-time)
 ```bash
-wget https://github.com/accellera-official/systemc/archive/refs/tags/3.0.0.tar.gz
-tar xf 3.0.0.tar.gz && cd systemc-3.0.0
+# Download (macOS uses curl, not wget)
+curl -L -O https://github.com/accellera-official/systemc/archive/refs/tags/3.0.0.tar.gz
+tar xf 3.0.0.tar.gz
+cd systemc-3.0.0
 mkdir build && cd build
 cmake .. -DCMAKE_INSTALL_PREFIX=$HOME/systemc -DCMAKE_CXX_STANDARD=17
-make -j$(nproc) && make install
-export SYSTEMC_HOME=$HOME/systemc   # add to ~/.zshrc
+make -j$(sysctl -n hw.logicalcpu) && make install
+cd ../..   # back to wherever you started
+```
+
+Then add to `~/.zshrc` (run once, then open a new terminal):
+```bash
+echo 'export SYSTEMC_HOME=$HOME/systemc' >> ~/.zshrc
+source ~/.zshrc
 ```
 
 ### 2 — Build the testbench (standalone)
 ```bash
-cd systemc
-mkdir build && cd build
+cd /path/to/mlsim-accelerator/systemc
+mkdir -p build && cd build
 cmake ..
 make
 ./tb_array
 ```
 
-### 3 — Build everything from the root
+### 3 — Build everything from the repo root
 ```bash
-mkdir build && cd build
+cd /path/to/mlsim-accelerator
+mkdir -p build && cd build
 cmake ..
 make
 ./systemc/tb_array
