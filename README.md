@@ -50,6 +50,8 @@ Note: the tiled formula assumes M, K, N are multiples of ts (all benchmark confi
 - **tile=64 crosses the ridge point** — at 8.0 FLOP/B it sits near the compute-bound boundary, explaining the 8–14× speedup over naive.
 - **Remaining gap to peak** — even tiled is single-threaded scalar; AVX/AMX or multi-threading are the next levers (future phases).
 
+![Roofline plot](analysis/roofline_no_cache.png)
+
 <details>
 <summary>Full tile-size sweep</summary>
 
