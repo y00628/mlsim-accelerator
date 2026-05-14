@@ -5,6 +5,35 @@ A cycle-approximate ML accelerator simulator built in three layers:
 - **SystemC TLM model** — NxN systolic array, weight-stationary dataflow
 - **SystemVerilog RTL** — pipelined MAC processing element
 
+## Build (SystemC model)
+
+### 1 — Install SystemC (one-time)
+```bash
+wget https://github.com/accellera-official/systemc/archive/refs/tags/3.0.0.tar.gz
+tar xf 3.0.0.tar.gz && cd systemc-3.0.0
+mkdir build && cd build
+cmake .. -DCMAKE_INSTALL_PREFIX=$HOME/systemc -DCMAKE_CXX_STANDARD=17
+make -j$(nproc) && make install
+export SYSTEMC_HOME=$HOME/systemc   # add to ~/.zshrc
+```
+
+### 2 — Build the testbench (standalone)
+```bash
+cd systemc
+mkdir build && cd build
+cmake ..
+make
+./tb_array
+```
+
+### 3 — Build everything from the root
+```bash
+mkdir build && cd build
+cmake ..
+make
+./systemc/tb_array
+```
+
 ## Build (golden model)
 ```bash
 cd golden
