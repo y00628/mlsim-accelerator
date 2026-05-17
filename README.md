@@ -75,3 +75,24 @@ See [docs/phase1-roofline.md](docs/phase1-roofline.md) for the full AI derivatio
 | 2 | SystemC PE + systolic array | In progress |
 | 3 | SystemVerilog RTL PE + workloads | Not started |
 | 4 | Dataflow variants, write-up | Not started |
+
+## Phase 2 goals — SystemC systolic array
+
+Model a weight-stationary systolic array in SystemC TLM-2.0 and validate it against the Phase 1 golden GEMM.
+
+**Processing Element (`systemc/pe.h`)**
+- Single MAC unit modeled as an `SC_MODULE`
+- Holds a stationary weight; receives activations via `sc_fifo<float>` each cycle
+- Passes activation to right neighbor, accumulates partial sum downward
+
+**Array (`systemc/array.h`)**
+- N×N grid of PEs
+- Weight-stationary dataflow: weights loaded once, activations stream left-to-right, partial sums accumulate top-to-bottom
+- Outputs: total cycles, utilization %, stall cycles
+
+**Testbench (`systemc/tb_array.sc`)**
+- Generate random A (M×K) and B (K×N)
+- Run systolic simulation; compare output C against `gemm_naive` within 1e-4
+- Print cycle count and utilization stats
+
+**Definition of done:** simulation output matches golden within tolerance, `analysis/cycle_stats.py` parses the log and plots utilization.
