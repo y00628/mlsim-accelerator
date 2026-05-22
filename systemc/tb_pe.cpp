@@ -32,32 +32,6 @@ static void check(const char* name, bool ok) {
 }
 
 // ---------------------------------------------------------------------------
-// Drive K activations, run K cycles, drain act_out into passthrough[].
-// Resets acc to 0.0f before driving (simulates a fresh dot-product).
-// Weight is stationary and loaded once before simulation starts.
-// ---------------------------------------------------------------------------
-static float run_test(PE& dut,
-                      sc_fifo<float>& in_fifo,
-                      sc_fifo<float>& out_fifo,
-                      float weight,
-                      const float* acts, int K,
-                      float* passthrough)
-{
-    dut.weight = weight; // load weight once before simulation starts
-    dut.acc    = 0.0f;          // manual reset between tests
-
-    for (int i = 0; i < K; ++i)
-        in_fifo.write(acts[i]); // write activation to input fifo
-
-    sc_start(K, SC_NS); // run for K cycles
-
-    for (int i = 0; i < K; ++i)
-        passthrough[i] = out_fifo.read(); // read activation from output fifo
-
-    return dut.acc;
-}
-
-// ---------------------------------------------------------------------------
 // Top-level SC_MODULE that holds the single shared DUT
 // ---------------------------------------------------------------------------
 SC_MODULE(TB) {
@@ -75,6 +49,27 @@ SC_MODULE(TB) {
         dut.clk(clk);
         dut.act_in(act_in);
         dut.act_out(act_out);
+        SC_THREAD(run_all);  // must run inside a process so wait() is legal
+    }
+
+    // -----------------------------------------------------------------------
+    // Drive K activations, advance K clock cycles, drain act_out.
+    // Called from SC_THREAD only — uses wait(), not sc_start().
+    // -----------------------------------------------------------------------
+    float run_test(float weight, const float* acts, int K, float* passthrough)
+    {
+        dut.weight = weight;
+        dut.acc    = 0.0f;  // manual reset between tests
+
+        for (int i = 0; i < K; ++i)
+            act_in.write(acts[i]);
+
+        wait(K, SC_NS);  // let PE's SC_CTHREAD run K cycles
+
+        for (int i = 0; i < K; ++i)
+            passthrough[i] = act_out.read();
+
+        return dut.acc;
     }
 
     // -----------------------------------------------------------------------
@@ -91,7 +86,7 @@ SC_MODULE(TB) {
         for (int i = 0; i < K; ++i) ref += W * acts[i];
 
         float passthrough[K];
-        float got = run_test(dut, act_in, act_out, W, acts, K, passthrough);
+        float got = run_test(W, acts, K, passthrough);
 
         check("acc == sum(weight * act[i])", std::fabs(got - ref) < EPS);
     }
@@ -105,7 +100,7 @@ SC_MODULE(TB) {
         const float acts[K] = {1.0f, 2.0f, 3.0f, 4.0f};
 
         float passthrough[K];
-        float got = run_test(dut, act_in, act_out, 0.0f, acts, K, passthrough);
+        float got = run_test(0.0f, acts, K, passthrough);
 
         check("acc == 0 with zero weight", got == 0.0f);
     }
@@ -119,7 +114,7 @@ SC_MODULE(TB) {
         const float acts[K] = {0.0f, 0.0f, 0.0f, 0.0f};
 
         float passthrough[K];
-        float got = run_test(dut, act_in, act_out, 5.0f, acts, K, passthrough);
+        float got = run_test(5.0f, acts, K, passthrough);
 
         check("acc == 0 with zero activations", got == 0.0f);
     }
@@ -137,7 +132,7 @@ SC_MODULE(TB) {
         for (int i = 0; i < K; ++i) ref += W * acts[i];
 
         float passthrough[K];
-        float got = run_test(dut, act_in, act_out, W, acts, K, passthrough);
+        float got = run_test(W, acts, K, passthrough);
 
         check("acc correct with negative weight/activations", std::fabs(got - ref) < EPS);
     }
@@ -154,7 +149,7 @@ SC_MODULE(TB) {
         for (int i = 0; i < K; ++i) ref += acts[i];
 
         float passthrough[K];
-        float got = run_test(dut, act_in, act_out, 1.0f, acts, K, passthrough);
+        float got = run_test(1.0f, acts, K, passthrough);
 
         check("acc == sum(acts) for weight=1", std::fabs(got - ref) < EPS);
     }
@@ -171,7 +166,7 @@ SC_MODULE(TB) {
         const float acts[K] = {10.0f, 20.0f, 30.0f, 40.0f, 50.0f, 60.0f};
 
         float passthrough[K];
-        run_test(dut, act_in, act_out, W, acts, K, passthrough);
+        run_test(W, acts, K, passthrough);
 
         bool value_ok = true;
         bool order_ok = true;
@@ -197,7 +192,7 @@ SC_MODULE(TB) {
         float expected = (float)K * W;
 
         float passthrough[K];
-        float got = run_test(dut, act_in, act_out, W, acts, K, passthrough);
+        float got = run_test(W, acts, K, passthrough);
 
         check("acc cumulative after K cycles (not reset per cycle)",
               std::fabs(got - expected) < EPS);
@@ -218,7 +213,7 @@ SC_MODULE(TB) {
         for (int i = 0; i < K; ++i) ref += W * acts[i];  // same order as PE::run()
 
         float passthrough[K];
-        float got = run_test(dut, act_in, act_out, W, acts, K, passthrough);
+        float got = run_test(W, acts, K, passthrough);
 
         check("acc within 1e-4f of C++ reference (mixed signs)",
               std::fabs(got - ref) < EPS);
@@ -235,15 +230,15 @@ SC_MODULE(TB) {
         const float acts[K] = {1.0f, 2.0f, 3.0f, 4.0f};
 
         float passthrough[K];
-        run_test(dut, act_in, act_out, 1.0f, acts, K, passthrough);
+        run_test(1.0f, acts, K, passthrough);
 
-        // run_test drains act_out after sc_start; both fifos should now be empty
+        // run_test drains act_out after wait(); both fifos should now be empty
         check("act_in empty after K cycles",           act_in.num_available()  == 0);
         check("act_out empty after draining K values", act_out.num_available() == 0);
     }
 
     // -----------------------------------------------------------------------
-    // Entry point called from sc_main
+    // SC_THREAD entry — sequences all tests, then stops simulation
     // -----------------------------------------------------------------------
     void run_all() {
         test_basic_mac();
@@ -255,6 +250,7 @@ SC_MODULE(TB) {
         test_cumulative_accumulation();
         test_numerical_precision();
         test_k_boundary();
+        sc_stop();  // PE runs forever; stop once tests finish
     }
 };
 
@@ -265,7 +261,7 @@ int sc_main(int /*argc*/, char* /*argv*/[]) {
     std::printf("=== tb_pe: PE unit tests ===\n");
 
     TB tb("tb");
-    tb.run_all();
+    sc_start();  // runs until run_all() calls sc_stop()
 
     std::printf("\n=== Results: %d passed, %d failed ===\n", g_pass, g_fail);
     return g_fail > 0 ? 1 : 0;
