@@ -1,15 +1,15 @@
 #pragma once
 // Processing Element (PE) — Phase 2 (June)
 //
-// Models a single MAC unit in SystemC TLM-2.0.
+// Models a single MAC unit using SystemC channel-based communication (sc_fifo).
 // Each PE:
 //   - Holds a stationary weight (weight-stationary dataflow)
 //   - Receives an input activation each cycle via sc_fifo
 //   - Passes activation to the next PE (right neighbor)
 //   - Accumulates partial sum and sends it downward
 //
-// Key SystemC concepts you'll use here:
-//   SC_MODULE, SC_THREAD, sc_fifo<float>, wait(1, SC_NS)
+// Key SystemC concepts here:
+//   SC_MODULE, SC_CTHREAD, sc_fifo<float>
 //
 // TODO June week 1: implement single PE
 // TODO June week 2: wire N PEs into a row, then NxN array
@@ -32,7 +32,6 @@ SC_MODULE(PE) {
 
     // --- Constructor ---
     SC_CTOR(PE) {
-        SC_THREAD(run);         // register run() as a thread process
-        sensitive << clk.pos(); // append to the list of events that wake up the thread
+        SC_CTHREAD(run, clk.pos()); // resumes on rising edge automatically
     }
 };

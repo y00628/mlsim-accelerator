@@ -55,11 +55,12 @@ endif()
 # ---------------------------------------------------------------------------
 # Golden reference library (used by testbench for correctness checking)
 #
-# When built via the top-level CMakeLists the `gemm` target already exists;
-# reuse it.  When built standalone (cd systemc && cmake ..) build from source.
+# When built via the top-level CMakeLists the `gemm_naive` target already
+# exists; reuse it.  When built standalone (cd systemc && cmake ..) build
+# from source.
 # ---------------------------------------------------------------------------
-if(TARGET gemm)
-  set(GEMM_TARGET gemm)
+if(TARGET gemm_naive)
+  set(GEMM_TARGET gemm_naive)
 else()
   add_library(gemm_ref STATIC ../golden/gemm.cpp)
   target_include_directories(gemm_ref PUBLIC ../golden)
@@ -67,25 +68,23 @@ else()
 endif()
 
 # ---------------------------------------------------------------------------
-# .sc sources — CMake doesn't know this extension natively.
-# Copy each .sc into the build dir as .cpp at configure time so the standard
-# CXX compiler rules fire correctly.
+# Single-PE testbench — validate MAC behavior before wiring the array
 # ---------------------------------------------------------------------------
-set(SC_SOURCES tb_array.sc)
-set(SC_SOURCES_CPP "")
-foreach(_sc ${SC_SOURCES})
-  get_filename_component(_base ${_sc} NAME_WE)
-  set(_cpp "${CMAKE_CURRENT_BINARY_DIR}/${_base}.cpp")
-  configure_file(${_sc} ${_cpp} COPYONLY)
-  list(APPEND SC_SOURCES_CPP ${_cpp})
-endforeach()
+add_executable(tb_pe
+    tb_pe.cpp
+    pe.cpp
+)
+target_include_directories(tb_pe PRIVATE .)
+target_link_libraries(tb_pe PRIVATE SystemC::systemc ${GEMM_TARGET})
+target_compile_options(tb_pe PRIVATE -Wno-deprecated-declarations)
 
 # ---------------------------------------------------------------------------
-# Testbench executable
+# Full array testbench
 # ---------------------------------------------------------------------------
-add_executable(tb_array ${SC_SOURCES_CPP})
+add_executable(tb_array
+    tb_array.cpp
+    pe.cpp
+)
 target_include_directories(tb_array PRIVATE .)
 target_link_libraries(tb_array PRIVATE SystemC::systemc ${GEMM_TARGET})
-
-# Suppress noisy deprecation warnings from SystemC headers on recent compilers
 target_compile_options(tb_array PRIVATE -Wno-deprecated-declarations)
