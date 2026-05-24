@@ -53,7 +53,16 @@ make
 ./roofline       # prints benchmark numbers
 ```
 
-## Benchmark results (host CPU baseline)
+## Project phases
+| Phase | Focus | Status |
+|-------|-------|--------|
+| 1 | C++ GEMM, tiling, roofline | Done |
+| 2 | SystemC PE + systolic array | In progress |
+| 3 | SystemVerilog RTL PE + workloads | Not started |
+| 4 | Dataflow variants, write-up | Not started |
+
+
+## Phase 1 - Benchmark results (host CPU baseline)
 
 Measured on Apple M-series, `-O3 -march=native`. Reproduce with `./build/roofline`.
 
@@ -68,31 +77,21 @@ AI uses a no-cache worst-case model (conservative lower bounds). Ridge point ≈
 
 See [docs/phase1-roofline.md](docs/phase1-roofline.md) for the full AI derivation, memory traffic model, all matrix configs, and roofline plot.
 
-## Project phases
-| Phase | Focus | Status |
-|-------|-------|--------|
-| 1 | C++ GEMM, tiling, roofline | Done |
-| 2 | SystemC PE + systolic array | In progress |
-| 3 | SystemVerilog RTL PE + workloads | Not started |
-| 4 | Dataflow variants, write-up | Not started |
 
-## Phase 2 goals — SystemC systolic array
 
-Model a weight-stationary systolic array in SystemC TLM-2.0 and validate it against the Phase 1 golden GEMM.
+## Phase 2 — SystemC systolic array
 
-**Processing Element (`systemc/pe.h`)**
-- Single MAC unit modeled as an `SC_MODULE`
-- Holds a stationary weight; receives activations via `sc_fifo<float>` each cycle
-- Passes activation to right neighbor, accumulates partial sum downward
+PE is implemented and unit-tested. Array and full testbench are TODO.
 
-**Array (`systemc/array.h`)**
-- N×N grid of PEs
-- Weight-stationary dataflow: weights loaded once, activations stream left-to-right, partial sums accumulate top-to-bottom
-- Outputs: total cycles, utilization %, stall cycles
+| Component | File | Status |
+|-----------|------|--------|
+| Processing Element | `systemc/pe.h`, `pe.cpp` | Done |
+| PE unit tests | `systemc/tb_pe.cpp` | Done — 11/11 pass |
+| N×N Array | `systemc/array.h` | Skeleton |
+| Array testbench | `systemc/tb_array.cpp` | Skeleton |
 
-**Testbench (`systemc/tb_array.sc`)**
-- Generate random A (M×K) and B (K×N)
-- Run systolic simulation; compare output C against `gemm_naive` within 1e-4
-- Print cycle count and utilization stats
+```bash
+cd systemc/build && cmake .. && make tb_pe && ./tb_pe
+```
 
-**Definition of done:** simulation output matches golden within tolerance, `analysis/cycle_stats.py` parses the log and plots utilization.
+See [docs/phase2-systemc.md](docs/phase2-systemc.md) for PE design, test coverage, and array goals.
